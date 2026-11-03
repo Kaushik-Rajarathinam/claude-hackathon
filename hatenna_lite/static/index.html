@@ -180,7 +180,7 @@ input, select { font: inherit; font-size: 13px; padding: 7px 9px; border-radius:
           <input id="say" placeholder="Message #pokétwo-spawns" onkeydown="if(event.key==='Enter')chat()">
           <button class="primary" onclick="chat()">Send</button>
         </div>
-        <div class="muted small">Try <code>h!sh stantler</code> to hunt · <code>h!spawn 234</code> to spawn · <code>@hatenna what spawns most?</code></div>
+        <div class="muted small">Try <code>h!sh stantler</code> to hunt · <code>h!spawn 234</code> to spawn · <code>@hatenna what spawns most?</code> (ask twice to see the cache)</div>
       </div>
     </div>
   </section>
@@ -208,10 +208,11 @@ input, select { font: inherit; font-size: 13px; padding: 7px 9px; border-radius:
       </div>
       <div class="check" data-m="Capped AI spend">
         <div class="h">4 · Capped AI spend <span id="c4" class="badge ok"></span></div>
-        <div class="d">AI answers stay under a token budget.</div>
+        <div class="d">Facts come from its records; AI only rewords them, under a budget. Repeats come from a local cache.</div>
         <div class="kv"><span>Tokens used</span><b id="k4a">0 / 0</b></div>
         <div class="meter"><div id="k4m" style="width:0%"></div></div>
         <div class="kv"><span>AI answers · refused</span><b id="k4b">0 · 0</b></div>
+        <div class="kv"><span>Cache hits · tokens saved</span><b id="k4c">0 · 0</b></div>
       </div>
     </div>
     <div class="card flex1">
@@ -390,6 +391,7 @@ function renderChecks(st) {
     $("k4m").style.width = pct + "%";
     $("k4m").style.background = pct > 85 ? "var(--bad)" : pct > 60 ? "var(--warn)" : "var(--ok)";
     $("k4b").textContent = `${g.calls} · ${g.refused}`;
+    $("k4c").textContent = `${g.cache_hits} · ${g.tokens_saved}`;
     const capped = g.budget - g.used < 80;
     badge($("c4"), g.breaker_open_s > 0 ? `repeat guard ${g.breaker_open_s}s` : capped ? "cap reached" : "within budget",
           g.breaker_open_s > 0 || capped ? "bad" : "ok");
@@ -400,6 +402,7 @@ function renderChecks(st) {
 const LEDGER = {
   "execution-tier-binding": r => `<b>model assigned</b> · ${esc(r.tier)} tier → ${esc(r.provider)} · budget ${r.tokenBudget.total}`,
   "usage": r => `<b>AI answer</b> · ${r.tokens} tokens${r.estimated ? " (est.)" : ""}`,
+  "cache-hit": r => `<b style="color:var(--ok)">cache hit</b> · saved ${r.tokensSaved} tokens`,
   "refusal": r => `<b style="color:var(--bad)">AI refused</b> · ${esc(r.reason)}`,
 };
 function renderEvidence(st) {

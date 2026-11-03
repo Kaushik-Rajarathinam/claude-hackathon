@@ -30,17 +30,19 @@ Run them in order. Each one drives the real bot, then checks the bot's own statu
 | 2 | A helper crashes | Heals itself | The others keep working; the crashed helper restarts and its work is kept |
 | 3 | Power cut | Picks up where it left off | After kill -9 and restart, nothing is lost and nothing is repeated |
 | 4 | Same event twice | Picks up where it left off | A repeated event is recognised and skipped |
-| 5 | Retry loop | Capped AI spend | The third identical question is refused; the bot still answers without AI |
+| 5 | Same question again | Capped AI spend | A repeat is answered from the local cache for 0 tokens; new facts get a fresh AI answer |
 | 6 | Budget runs out | Capped AI spend | Spend stops at the cap; the bot keeps working |
 
 Each passed scene shows a one-line talk track. Use **Slow / Normal / Fast** to set the pace, and **Reset** to start over (scene 6 uses up the AI budget for the day).
+
+How the Analyst answers: it first looks the facts up in the bot's own records, then the AI only rewords them. Each AI answer is saved in a local cache (in `var/memory.db`, so it survives restarts) keyed by the question *and* the facts, so a repeat costs 0 tokens and a changed fact always gets a fresh answer. With no budget left, the bot posts the plain facts.
 
 ## How it's built
 
 | Module | File | Comes from |
 |---|---|---|
 | Listener, Supervisor, Resume | `hatenna_lite/bot.py` | HatennaBot's reliability work, minus Mongo/Redis |
-| Spend guard | `hatenna_lite/spend_guard.py` | Python port of the Commerce Trust Labs [gateway](https://github.com/commerce-trust-labs/autonomous-trust-gateway): tier routing, per-task budgets, Execution Tier Bindings |
+| Spend guard | `hatenna_lite/spend_guard.py` | Python port of the Commerce Trust Labs [gateway](https://github.com/commerce-trust-labs/autonomous-trust-gateway): tier routing, per-task budgets, Execution Tier Bindings; plus a local answer cache |
 | Helpers | `hatenna_lite/helpers.py` | Identifier (`cogs/prediction.py`), Pinger (`cogs/shinyhunt.py`), Analyst (`cogs/ai.py`) in HatennaBot |
 | Memory | `hatenna_lite/memory.py` | one SQLite file instead of MongoDB + Redis |
 | Demo console + scenes | `hatenna_lite/console.py`, `hatenna_lite/scenes.py`, `hatenna_lite/static/index.html` | new |

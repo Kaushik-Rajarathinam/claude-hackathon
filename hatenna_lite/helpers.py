@@ -89,7 +89,9 @@ class Analyst(Helper):
         draft = self._draft(question)
         out = await self.guard.call(self.task_ref(), self.name, "local",
                                     f"Question from a Discord user: {question}", draft)
-        if out.allowed:
+        if out.reason == "cache":
+            self.say(f"{out.text}  [from cache · 0 tokens]")
+        elif out.allowed:
             self.say(f"{out.text}  [{out.tokens} tokens]")
         else:
             self.say(f"{out.text}  [no AI: {out.reason}]")

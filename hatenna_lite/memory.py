@@ -40,6 +40,13 @@ CREATE TABLE IF NOT EXISTS spend (
     calls   INTEGER NOT NULL DEFAULT 0,
     refused INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS ai_cache (
+    key    TEXT PRIMARY KEY,
+    text   TEXT NOT NULL,
+    tokens INTEGER NOT NULL,
+    hits   INTEGER NOT NULL DEFAULT 0,
+    ts     REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS facts (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -119,6 +126,21 @@ class Memory:
 
     def incident_count(self) -> int:
         return self._one("SELECT COUNT(*) n FROM incidents")["n"]
+
+    # --- AI answer cache: keyed by question + the facts it was given ---
+    def cached_answer(self, key: str) -> Optional[sqlite3.Row]:
+        return self._one("SELECT text, tokens FROM ai_cache WHERE key=?", key)
+
+    def cache_answer(self, key: str, text: str, tokens: int, ts: float) -> None:
+        self.db.execute("INSERT OR REPLACE INTO ai_cache(key, text, tokens, hits, ts) VALUES(?,?,?,0,?)",
+                        (key, text, tokens, ts))
+
+    def record_cache_hit(self, key: str) -> None:
+        self.db.execute("UPDATE ai_cache SET hits=hits+1 WHERE key=?", (key,))
+
+    def cache_stats(self) -> dict:
+        row = self._one("SELECT COALESCE(SUM(hits),0) hits, COALESCE(SUM(hits*tokens),0) saved FROM ai_cache")
+        return {"hits": row["hits"], "saved": row["saved"]}
 
     # --- spend: token use per task, kept across restarts ---
     def spend(self, task: str) -> dict:

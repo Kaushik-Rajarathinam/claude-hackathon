@@ -112,8 +112,8 @@ class SpendGuardTest(unittest.TestCase):
         self.memory.close()
         self.tmp.cleanup()
 
-    def call(self, guard, prompt, task="task_demo-0001"):
-        return asyncio.run(guard.call(task, "analyst", "local", prompt, "draft answer"))
+    def call(self, guard, prompt, task="task_demo-0001", draft="draft answer"):
+        return asyncio.run(guard.call(task, "analyst", "local", prompt, draft))
 
     def test_budget_is_never_exceeded_and_refusal_falls_back(self):
         guard = SpendGuard(self.memory, self.ledger, budget=90, use_ollama=False)
@@ -132,11 +132,39 @@ class SpendGuardTest(unittest.TestCase):
         self.assertEqual(again.snapshot("task_demo-0001")["used"], used)
 
     def test_breaker_opens_on_retry_loop(self):
+        # Facts differ each time, so the cache can't absorb the repeats.
         guard = SpendGuard(self.memory, self.ledger, budget=10_000, use_ollama=False)
-        results = [self.call(guard, "same question") for _ in range(3)]
+        results = [self.call(guard, "same question", draft=f"facts v{i}") for i in range(3)]
         self.assertEqual([r.allowed for r in results], [True, True, False])
         self.assertIn("retry loop", results[2].reason)
-        self.assertFalse(self.call(guard, "a different question").allowed)  # still open
+        self.assertFalse(self.call(guard, "a different question", draft="facts v9").allowed)  # still open
+
+    def test_cache_answers_a_repeat_for_free(self):
+        guard = SpendGuard(self.memory, self.ledger, budget=10_000, use_ollama=False)
+        first = self.call(guard, "what spawns most?", draft="Stantler ×3")
+        used = self.memory.spend("task_demo-0001")["tokens"]
+        again = self.call(guard, "what spawns most?", draft="Stantler ×3")
+        self.assertEqual((again.reason, again.tokens, again.text), ("cache", 0, first.text))
+        self.assertEqual(self.memory.spend("task_demo-0001")["tokens"], used)
+        self.assertEqual(guard.snapshot("task_demo-0001")["cache_hits"], 1)
+
+    def test_cache_misses_when_facts_change(self):
+        guard = SpendGuard(self.memory, self.ledger, budget=10_000, use_ollama=False)
+        self.call(guard, "what spawns most?", draft="Stantler ×3")
+        fresh = self.call(guard, "what spawns most?", draft="Stantler ×4")
+        self.assertEqual((fresh.reason, fresh.text), ("ok", "Stantler ×4"))
+
+    def test_cache_survives_restart(self):
+        guard = SpendGuard(self.memory, self.ledger, budget=10_000, use_ollama=False)
+        self.call(guard, "q", draft="facts")
+        again = SpendGuard(self.memory, self.ledger, budget=10_000, use_ollama=False)
+        self.assertEqual(self.call(again, "q", draft="facts").reason, "cache")
+
+    def test_cache_is_skipped_for_refusals(self):
+        guard = SpendGuard(self.memory, self.ledger, budget=10, use_ollama=False)
+        self.assertFalse(self.call(guard, "q", draft="facts").allowed)
+        self.assertIsNone(self.memory.cached_answer("anything"))
+        self.assertEqual(self.memory.cache_stats()["hits"], 0)
 
     def test_one_tier_binding_per_task_and_tier(self):
         guard = SpendGuard(self.memory, self.ledger, budget=10_000, use_ollama=False)

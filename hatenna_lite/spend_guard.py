@@ -5,6 +5,8 @@
 #     decides who serves it,
 #   - every task has a token budget, and use is persisted so a restart does
 #     not hand out a fresh budget,
+#   - a local cache answers a repeat question for free, keyed by the question
+#     and the exact facts behind it, so changed facts are never served stale,
 #   - a breaker stops a helper that keeps asking the same thing (retry loop),
 #   - each task+tier gets an Execution Tier Binding written to the ledger.
 # When the guard refuses, the caller gets its deterministic draft back, so the
@@ -120,6 +122,14 @@ class SpendGuard:
         return Outcome(draft, False, reason, 0)
 
     async def call(self, task: str, helper: str, tier: str, prompt: str, draft: str) -> Outcome:
+        cache_key = hashlib.sha1(f"{tier}\n{prompt}\n{draft}".encode()).hexdigest()
+        hit = self.memory.cached_answer(cache_key)
+        if hit:
+            self.memory.record_cache_hit(cache_key)
+            self.ledger.write("cache-hit", {"taskRef": task, "helper": helper,
+                                            "tokensSaved": hit["tokens"], "at": utc_now()})
+            return Outcome(hit["text"], True, "cache", 0)
+
         now = time.monotonic()
         if self.open_until.get(task, 0) > now:
             return self._refuse(task, draft, "breaker open: repeated identical requests")
@@ -145,6 +155,7 @@ class SpendGuard:
         except Exception as exc:  # a dead model is a fallback, never a crash
             return self._refuse(task, draft, f"{backend.provider} unavailable: {exc}")
         self.memory.add_spend(task, tokens=tokens, calls=1)
+        self.memory.cache_answer(cache_key, text, tokens, time.time())
         self.ledger.write("usage", {"taskRef": task, "helper": helper, "tier": tier,
                                     "provider": backend.provider, "tokens": tokens,
                                     "estimated": backend.provider == "stub", "at": utc_now()})
@@ -154,6 +165,8 @@ class SpendGuard:
         s = self.memory.spend(task)
         left = self.open_until.get(task, 0) - time.monotonic()
         backend = self.routes["local"]
+        c = self.memory.cache_stats()
         return {"task": task, "budget": self.budget, "used": s["tokens"], "calls": s["calls"],
                 "refused": s["refused"], "breaker_open_s": round(left) if left > 0 else 0,
+                "cache_hits": c["hits"], "tokens_saved": c["saved"],
                 "tier": "local", "provider": backend.provider, "model": backend.model}

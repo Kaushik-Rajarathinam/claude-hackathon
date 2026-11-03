@@ -183,7 +183,7 @@ def _resend(c: Ctx) -> str:
     return "recognised by its id and skipped"
 
 
-# --- scene 5: retry loop ---------------------------------------------------
+# --- scene 5: same question again (cache) ----------------------------------
 
 QUESTION = "what spawns most?"
 
@@ -193,28 +193,40 @@ def _wait_guard(c: Ctx) -> str:
     return "repeat guard is off"
 
 
+def _answered(c: Ctx, before: dict) -> dict:
+    keys = ("calls", "refused", "cache_hits")
+    c.wait(lambda: sum(c.status()["spend"][k] for k in keys) > sum(before[k] for k in keys), "an answer")
+    return c.status()["spend"]
+
+
 def _ask_once(c: Ctx) -> str:
+    c.spawn()  # fresh facts, so this question is new to the cache
     g = c.status()["spend"]
     c.send(kind="ask", text=QUESTION)
-    c.wait(lambda: c.status()["spend"]["calls"] + c.status()["spend"]["refused"]
-           > g["calls"] + g["refused"], "AI answer")
-    if c.status()["spend"]["calls"] == g["calls"]:
+    after = _answered(c, g)
+    if after["calls"] == g["calls"]:
         raise StepFailed("the AI budget is already used up; Reset demo to run this scene")
-    return f"AI answered ({c.status()['spend']['used']} tokens used so far)"
+    c.memo["tokens"] = after["used"]
+    return f"AI answered, {after['used'] - g['used']} tokens"
 
 
-def _ask_twice_more(c: Ctx) -> str:
-    refused = c.status()["spend"]["refused"]
-    c.memo["fallbacks"] = c.feed_count("analyst", "no AI: breaker")
+def _ask_again(c: Ctx) -> str:
+    g = c.status()["spend"]
     c.send(kind="ask", text=QUESTION)
+    after = _answered(c, g)
+    if after["cache_hits"] != g["cache_hits"] + 1 or after["used"] != g["used"]:
+        raise StepFailed("expected a cache hit with no new tokens")
+    return f"served from the local cache, 0 tokens (saved {after['tokens_saved']} so far)"
+
+
+def _facts_change(c: Ctx) -> str:
+    sp = c.spawn()
+    g = c.status()["spend"]
     c.send(kind="ask", text=QUESTION)
-    c.wait(lambda: c.status()["spend"]["refused"] == refused + 1, "third ask refused")
-    return "2nd answered, 3rd refused"
-
-
-def _still_answers(c: Ctx) -> str:
-    c.wait_for_new("analyst", "no AI: breaker", c.memo["fallbacks"], "fallback answer")
-    return f"answered from its own data; guard on for {c.status()['spend']['breaker_open_s']}s"
+    after = _answered(c, g)
+    if after["cache_hits"] != g["cache_hits"]:
+        raise StepFailed("served a cached answer although the facts changed")
+    return f"a {sp['name']} spawned, so the old answer was stale: asked the AI again"
 
 
 # --- scene 6: budget runs out ----------------------------------------------
@@ -274,14 +286,14 @@ SCENES = [
               Step("Make sure the bot is up", "", _start),
               Step("Resend the last event", "Simulates a retry or a redelivery from Discord.", _resend),
           ]),
-    Scene("loop", "Retry loop", "Capped AI spend",
-          "Spend guard", "The third identical question is refused; the bot still answers without AI.",
-          "An always-on bot can't get stuck burning tokens on the same question.", [
+    Scene("cache", "Same question again", "Capped AI spend",
+          "Spend guard", "A repeat question is answered from the local cache for 0 tokens; new facts get a fresh answer.",
+          "Ask twice, pay once. The cache never serves an answer whose facts have changed.", [
               Step("Make sure the bot is up", "", _start),
               Step("Wait for a clean slate", "", _wait_guard),
-              Step("Ask a question", "It goes to a small local AI model, through the spend guard.", _ask_once),
-              Step("Ask the same thing twice more", "The same question 3 times in 30 s looks like a loop.", _ask_twice_more),
-              Step("The bot still replies", "Refused AI never means no answer: it falls back to its own data.", _still_answers),
+              Step("Ask a question", "The bot looks up the facts; the AI rewords them, within budget.", _ask_once),
+              Step("Ask the exact same thing", "Same question, same facts: reuse the saved answer.", _ask_again),
+              Step("A new spawn, then ask again", "The facts changed, so the cached answer no longer fits.", _facts_change),
           ]),
     Scene("budget", "Budget runs out", "Capped AI spend",
           "Spend guard", "Spend stops at the cap; the bot keeps working.",
