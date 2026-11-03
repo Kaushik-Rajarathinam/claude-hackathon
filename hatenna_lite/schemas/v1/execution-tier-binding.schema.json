@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commercetrustlabs.org/schemas/v1/execution-tier-binding.schema.json",
+  "title": "Execution Tier Binding",
+  "description": "Produced by the orchestrator; consumed by the control plane / gateway. Binds a task to a provider-agnostic capability tier and a token budget. The provider occupying a tier is a routing-table entry, never an architectural dependency.",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "bindingId",
+    "taskRef",
+    "tier",
+    "tokenBudget",
+    "escalation",
+    "decidedAt",
+    "decidedBy"
+  ],
+  "properties": {
+    "contractVersion": {
+      "$ref": "common.schema.json#/$defs/contractVersion"
+    },
+    "bindingId": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "taskRef": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "tier": {
+      "$ref": "common.schema.json#/$defs/capabilityTier"
+    },
+    "provider": {
+      "type": "string",
+      "description": "Informational only: which provider currently occupies the tier. Consumers MUST NOT branch on this field."
+    },
+    "model": {
+      "type": "string",
+      "description": "Informational only."
+    },
+    "tokenBudget": {
+      "type": "object",
+      "required": [
+        "total"
+      ],
+      "properties": {
+        "input": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "escalation": {
+      "type": "object",
+      "required": [
+        "allowed"
+      ],
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "toTier": {
+          "$ref": "common.schema.json#/$defs/capabilityTier"
+        },
+        "trigger": {
+          "type": "string",
+          "description": "Condition that permits escalation (risk threshold, uncertainty signal, failed verification)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "decidedAt": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "decidedBy": {
+      "$ref": "common.schema.json#/$defs/actor"
+    },
+    "$comment": {
+      "type": "string",
+      "description": "Non-normative annotation."
+    }
+  },
+  "additionalProperties": false
+}

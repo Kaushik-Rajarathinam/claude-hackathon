@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who's That Pokémon?</title>
+<style>
+:root {
+  --bg: #f4f3ef; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e4e2dd;
+  --chat: #ffffff; --chat-hover: #f7f6f3; --embed: #f4f3ef;
+  --ok: #1f8a4c; --ok-bg: #e5f4ea; --warn: #b26a00; --warn-bg: #fdf1dc;
+  --bad: #c0392b; --bad-bg: #fbe6e3; --accent: #c2477a; --accent-ink: #fff; --mention: #fdf1dc;
+  --poketwo: #e2574c; --hatenna: #c2477a; --user: #4a6fa5;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141416; --panel: #1d1d20; --ink: #ececef; --muted: #9a9aa2; --line: #2e2e33;
+    --chat: #232327; --chat-hover: #29292e; --embed: #1b1b1f;
+    --ok: #4cc98a; --ok-bg: #16301f; --warn: #f0b04a; --warn-bg: #3a2c12;
+    --bad: #f07a6c; --bad-bg: #3a1a17; --accent: #e070a0; --mention: #3a2c12;
+    --poketwo: #f07a6c; --hatenna: #e070a0; --user: #7fa3d6;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.app { display: grid; grid-template-columns: 290px minmax(0, 1fr) 320px; gap: 12px; padding: 12px; height: 100vh; }
+@media (max-width: 1100px) { .app { grid-template-columns: 1fr; height: auto; } }
+.col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+h1 { margin: 0; font-size: 18px; }
+h2 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+button { font: inherit; font-weight: 600; font-size: 13px; padding: 6px 11px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.danger { color: var(--bad); }
+button.tiny { padding: 2px 8px; font-size: 12px; }
+input, select { font: inherit; font-size: 13px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); min-width: 0; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+.pill.up { background: var(--ok-bg); color: var(--ok); }
+.pill.down { background: var(--bad-bg); color: var(--bad); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.pill.up .dot { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+.badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.badge.off { background: var(--line); color: var(--muted); }
+
+/* scenes rail */
+.scenes { display: flex; flex-direction: column; gap: 8px; overflow: auto; min-height: 0; }
+.scene { border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; display: grid; gap: 3px; }
+.scene.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.scene .t { font-weight: 700; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.scene .m { font-size: 12px; color: var(--accent); font-weight: 600; }
+.scene .e { font-size: 12px; color: var(--muted); }
+
+/* stepper */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.steps li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+.ico { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  background: var(--line); color: var(--muted); }
+.ico.running { background: var(--warn-bg); color: var(--warn); animation: pulse 0.8s infinite; }
+.ico.pass { background: var(--ok-bg); color: var(--ok); }
+.ico.fail { background: var(--bad-bg); color: var(--bad); }
+.steps .st { font-weight: 600; }
+.steps .why { font-size: 12px; color: var(--muted); }
+.steps .det { font-size: 12px; font-family: var(--mono); }
+.steps .det.fail { color: var(--bad); }
+.result { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.result.passed { background: var(--ok-bg); }
+.result.failed { background: var(--bad-bg); }
+
+/* channel */
+.channel { display: flex; flex-direction: column; min-height: 420px; flex: 1; padding: 0; overflow: hidden; }
+.chan-head { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.chan-head b { font-size: 15px; }
+.msgs { flex: 1; overflow: auto; padding: 8px 0; background: var(--chat); min-height: 0; }
+.msg { display: grid; grid-template-columns: 36px 1fr; gap: 10px; padding: 5px 14px; }
+.msg:hover { background: var(--chat-hover); }
+.msg.mention { background: var(--mention); box-shadow: 3px 0 0 var(--warn) inset; }
+.av { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; }
+.who { font-weight: 700; }
+.bot { font-size: 10px; font-weight: 800; background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 4px; margin-left: 4px; vertical-align: 1px; }
+.when { font-size: 11px; color: var(--muted); margin-left: 6px; }
+.body { white-space: pre-wrap; word-break: break-word; }
+.at { color: var(--user); font-weight: 600; }
+.tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; margin-left: 6px; }
+.tag.no { color: var(--bad); border-color: currentColor; }
+.embed { margin-top: 6px; max-width: 300px; border-left: 4px solid var(--poketwo); background: var(--embed); border-radius: 6px; padding: 10px 12px; }
+.embed b { display: block; margin-bottom: 2px; }
+.embed img { margin-top: 8px; width: 100%; max-height: 150px; object-fit: cover; border-radius: 6px; display: block; }
+.embed .ph { margin-top: 8px; height: 120px; display: grid; place-items: center; border-radius: 6px; background: var(--line); color: var(--muted); font-weight: 800; }
+.sys { text-align: center; font-size: 12px; color: var(--muted); padding: 6px 14px; }
+.sys span { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.sys.bad span { color: var(--bad); border-color: currentColor; }
+.sys.ok span { color: var(--ok); border-color: currentColor; }
+.composer { border-top: 1px solid var(--line); padding: 10px 14px; display: grid; gap: 6px; }
+.composer .row input { flex: 1; }
+.typing { font-size: 12px; color: var(--muted); height: 16px; padding: 0 14px; }
+
+/* live checks */
+.check { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.check.focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.check .h { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-weight: 700; }
+.check .d { font-size: 12px; color: var(--muted); }
+.kv { display: flex; justify-content: space-between; font-size: 12px; }
+.kv b { font-variant-numeric: tabular-nums; }
+.meter { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.meter > div { height: 100%; background: var(--ok); transition: width .3s; }
+.log { font-family: var(--mono); font-size: 11px; overflow: auto; min-height: 0; flex: 1; }
+.log details { border-bottom: 1px solid var(--line); padding: 3px 0; }
+.log summary { cursor: pointer; }
+.log pre { margin: 4px 0; white-space: pre-wrap; word-break: break-word; color: var(--muted); }
+.flex1 { flex: 1; display: flex; flex-direction: column; min-height: 140px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- LEFT: bot + scenes -->
+  <aside class="col">
+    <div class="card">
+      <h1>Who's That Pokémon?</h1>
+      <div class="muted small" style="margin:2px 0 10px">Hatenna, an always-on helper bot for the Pokétwo game. Run a scene, or play in the channel.</div>
+      <div class="row" style="justify-content:space-between">
+        <span id="pill" class="pill down"><span class="dot"></span><span id="pill-text">connecting…</span></span>
+        <span class="muted small" id="meta"></span>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="b-start" class="primary" onclick="post('/api/bot/start')">Start</button>
+        <button id="b-stop" onclick="post('/api/bot/stop')">Stop</button>
+        <button id="b-kill" class="danger" onclick="post('/api/bot/kill')" title="kill -9: no warning, no cleanup">Pull the plug</button>
+        <button id="b-reset" onclick="if (confirm('Wipe everything and start over?')) post('/api/reset')">Reset</button>
+      </div>
+    </div>
+    <div class="card col" style="flex:1;gap:8px">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Demo scenes</h2>
+        <select id="pace" onchange="post('/api/pace', {pace: +this.value})" aria-label="pace">
+          <option value="2.4">Slow</option><option value="1.2" selected>Normal</option><option value="0.4">Fast</option>
+        </select>
+      </div>
+      <div class="scenes" id="scenes"></div>
+    </div>
+  </aside>
+
+  <!-- CENTER: scene progress + the simulated game channel -->
+  <section class="col">
+    <div class="card" id="scene-card">
+      <div id="scene-empty" class="muted">Pick a scene on the left. Each step runs against the live bot and is only ticked when the bot really did it.</div>
+      <div id="scene-body" hidden>
+        <div class="row" style="justify-content:space-between;margin-bottom:8px">
+          <b id="scene-title" style="font-size:15px"></b><span id="scene-state" class="badge"></span>
+        </div>
+        <ol class="steps" id="steps"></ol>
+        <div id="scene-result" class="result" hidden></div>
+      </div>
+    </div>
+
+    <div class="card channel">
+      <div class="chan-head">
+        <div><b># pokétwo-spawns</b> <span class="muted small">· the game posts spawns, Hatenna replies</span></div>
+        <button class="tiny" onclick="send({kind:'spawn'})">Spawn a pokémon</button>
+      </div>
+      <div class="msgs" id="msgs"></div>
+      <div class="typing" id="typing"></div>
+      <div class="composer">
+        <div class="row">
+          <select id="as" aria-label="post as"><option>kaushik</option><option>judge</option><option>pranesh</option></select>
+          <input id="say" placeholder="Message #pokétwo-spawns" onkeydown="if(event.key==='Enter')chat()">
+          <button class="primary" onclick="chat()">Send</button>
+        </div>
+        <div class="muted small">Try <code>h!sh stantler</code> to hunt · <code>h!spawn 234</code> to spawn · <code>@hatenna what spawns most?</code> (ask twice to see the cache)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: live checks + evidence -->
+  <aside class="col">
+    <div class="card" style="display:grid;gap:8px">
+      <h2 style="margin:0">Always on · live checks</h2>
+      <div class="check" data-m="Always listening">
+        <div class="h">1 · Always listening <span id="c1" class="badge ok"></span></div>
+        <div class="d">Every event is picked up, one at a time.</div>
+        <div class="kv"><span>Handled since start</span><b id="k1a">0</b></div>
+        <div class="kv"><span>Waiting</span><b id="k1b">0</b></div>
+      </div>
+      <div class="check" data-m="Heals itself">
+        <div class="h">2 · Heals itself <span id="c2" class="badge ok"></span></div>
+        <div class="d">A crashed helper restarts; the rest carry on.</div>
+        <div id="helpers" style="display:grid;gap:3px;margin-top:2px"></div>
+      </div>
+      <div class="check" data-m="Picks up where it left off">
+        <div class="h">3 · Picks up where it left off <span id="c3" class="badge ok"></span></div>
+        <div class="d">Nothing lost, nothing repeated after a restart.</div>
+        <div class="kv"><span>Times started</span><b id="k3a">0</b></div>
+        <div class="kv"><span>Repeats skipped</span><b id="k3b">0</b></div>
+      </div>
+      <div class="check" data-m="Capped AI spend">
+        <div class="h">4 · Capped AI spend <span id="c4" class="badge ok"></span></div>
+        <div class="d">Facts come from its records; AI only rewords them, under a budget. Repeats come from a local cache.</div>
+        <div class="kv"><span>Tokens used</span><b id="k4a">0 / 0</b></div>
+        <div class="meter"><div id="k4m" style="width:0%"></div></div>
+        <div class="kv"><span>AI answers · refused</span><b id="k4b">0 · 0</b></div>
+        <div class="kv"><span>Cache hits · tokens saved</span><b id="k4c">0 · 0</b></div>
+      </div>
+    </div>
+    <div class="card flex1">
+      <h2>AI spend log</h2>
+      <div class="log" id="ledger"></div>
+    </div>
+    <div class="card flex1">
+      <h2>Bot internals</h2>
+      <div class="log" id="internals"></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let last = {};
+
+async function post(path, body = {}) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (j.error) alert(j.error);
+  tick();
+  return j;
+}
+const send = body => post("/api/event", body);
+function chat() {
+  const text = $("say").value.trim();
+  if (!text) return;
+  $("say").value = "";
+  send({ kind: "say", user: $("as").value, text });
+}
+function age(s) {
+  if (s < 60) return s.toFixed(1) + "s";
+  const m = Math.floor(s / 60);
+  return m < 60 ? `${m}m ${Math.floor(s % 60)}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+function badge(el, text, kind) { el.textContent = text; el.className = "badge " + kind; }
+const clock = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+const changed = (key, value) => { const v = JSON.stringify(value); if (last[key] === v) return false; last[key] = v; return true; };
+
+// ---------- the channel: game posts + bot replies, merged by time ----------
+const AUTHORS = {
+  "Pokétwo": { color: "var(--poketwo)", bot: true },
+  "Hatenna": { color: "var(--hatenna)", bot: true },
+};
+function avatar(name) {
+  const a = AUTHORS[name] || { color: "var(--user)" };
+  return `<div class="av" style="background:${a.color}">${esc(name[0].toUpperCase())}</div>`;
+}
+function mentions(text) { return esc(text).replace(/@([a-z0-9_]+)/gi, '<span class="at">@$1</span>'); }
+
+function channelItems(st) {
+  const items = [], seen = new Set();
+  for (const e of st.inbox) {
+    const p = e.payload || {}, ts = e.ts || 0;
+    if (seen.has(e.id)) { items.push({ ts, sys: `Discord delivered ${e.id} again`, kind: "" }); continue; }
+    seen.add(e.id);
+    if (e.kind === "spawn") items.push({ ts, author: "Pokétwo", spawn: p });
+    else if (e.kind === "hunt") items.push({ ts, author: p.user, text: `h!sh ${p.pokemon}` });
+    else if (e.kind === "ask") items.push({ ts, author: p.user || "judge", text: `@Hatenna ${p.text}` });
+    else if (e.kind === "chat") items.push({ ts, author: p.user, text: p.text });
+    else if (e.kind === "chaos") items.push({ ts, sys: `Demo: injected a crash into the ${p.target}`, kind: "bad" });
+  }
+  for (const f of st.feed) {
+    const t = f.text;
+    if (["identifier", "pinger", "analyst"].includes(f.who)) {
+      const m = t.match(/^(.*?)\s+\[(.*)\]$/);
+      items.push({ ts: f.ts, author: "Hatenna", text: m ? m[1] : t, tag: m ? m[2] : null, helper: f.who });
+    } else if (f.who === "supervisor") {
+      if (t.startsWith("boot #")) items.push({ ts: f.ts, sys: `Hatenna is online · start #${t.match(/#(\d+)/)[1]}`, kind: "ok" });
+      else if (t.includes("crashed")) items.push({ ts: f.ts, sys: `Hatenna's ${t.split(" ")[0]} crashed · the rest keep running`, kind: "bad" });
+      else if (t.includes("back up")) items.push({ ts: f.ts, sys: `Hatenna's ${t.split(" ")[0]} restarted itself`, kind: "ok" });
+      else if (t.startsWith("stopped")) items.push({ ts: f.ts, sys: "Hatenna went offline (stopped)", kind: "" });
+    } else if (f.who === "console" && t.startsWith("kill -9")) {
+      items.push({ ts: f.ts, sys: "Plug pulled · Hatenna is offline", kind: "bad" });
+    } else if (f.who === "listener" && t.includes("skipped duplicate")) {
+      items.push({ ts: f.ts + 0.001, sys: "Hatenna recognised the repeat and ignored it", kind: "ok" });
+    }
+  }
+  return items.sort((a, b) => a.ts - b.ts).slice(-150);
+}
+
+function renderChannel(st) {
+  const items = channelItems(st);
+  if (!changed("chan", items.length + ":" + (items.length && items[items.length - 1].ts))) return;
+  const box = $("msgs");
+  if (!items.length) { box.innerHTML = '<div class="sys"><span>No messages yet. Start the bot and spawn a pokémon.</span></div>'; return; }
+  box.innerHTML = items.map(m => {
+    if (m.sys) return `<div class="sys ${m.kind}"><span>${esc(m.sys)}</span></div>`;
+    const a = AUTHORS[m.author];
+    let body = "";
+    if (m.spawn) {
+      const img = m.spawn.image
+        ? `<img src="${esc(m.spawn.image)}" alt="a wild pokémon" onerror="this.outerHTML='<div class=ph>#${m.spawn.dex || "?"}</div>'">` : "";
+      body = `<div class="embed"><b>A wild pokémon has appeared!</b><span class="muted small">Guess the pokémon and type <code>@Pokétwo catch &lt;pokémon&gt;</code> to catch it!</span>${img}</div>`;
+    } else {
+      const tag = m.tag ? `<span class="tag ${m.tag.startsWith("no AI") ? "no" : ""}">${esc(m.tag)}</span>` : "";
+      body = `<div class="body">${mentions(m.text)}${tag}</div>`;
+    }
+    const isPing = m.helper === "pinger" && /@/.test(m.text || "");
+    return `<div class="msg ${isPing ? "mention" : ""}">${avatar(m.author)}<div>
+      <span class="who" style="color:${a ? a.color : "var(--ink)"}">${esc(m.author)}</span>${a && a.bot ? '<span class="bot">BOT</span>' : ""}
+      <span class="when">${clock(m.ts)}</span>${body}</div></div>`;
+  }).join("");
+  box.querySelectorAll("img").forEach(im => im.addEventListener("load", pinChannel));
+  pinChannel();
+}
+// Follow new messages unless the viewer has scrolled up to read.
+let readingBack = false;
+function pinChannel() { if (!readingBack) $("msgs").scrollTop = $("msgs").scrollHeight; }
+$("msgs").addEventListener("scroll", () => {
+  const b = $("msgs");
+  readingBack = b.scrollHeight - b.scrollTop - b.clientHeight > 80;
+});
+
+// ---------- scenes ----------
+function renderScenes(st) {
+  const cur = st.scene, running = cur && cur.state === "running";
+  if (changed("scenes", [st.scenes, cur && cur.key, running])) {
+    $("scenes").innerHTML = st.scenes.map((s, i) => `
+      <div class="scene ${cur && cur.key === s.key ? "active" : ""}">
+        <div class="t"><span>${i + 1}. ${esc(s.title)}</span>
+          <button class="tiny ${i === 0 ? "primary" : ""}" ${running ? "disabled" : ""} onclick="post('/api/scene',{key:'${s.key}'})">Run</button></div>
+        <div class="m">${esc(s.module)}</div>
+        <div class="e">Expected: ${esc(s.expect)}</div>
+      </div>`).join("");
+  }
+  if (!changed("scene", cur)) return;
+  $("scene-empty").hidden = !!cur; $("scene-body").hidden = !cur;
+  if (!cur) return;
+  $("scene-title").textContent = `${cur.title} · ${cur.module}`;
+  badge($("scene-state"), cur.state, { running: "warn", passed: "ok", failed: "bad" }[cur.state]);
+  const icon = { pending: "", running: "…", pass: "✓", fail: "✕" };
+  $("steps").innerHTML = cur.steps.map((s, i) => `
+    <li><span class="ico ${s.state}">${icon[s.state] || i + 1}</span><div>
+      <div class="st">${esc(s.title)}</div>
+      ${s.why ? `<div class="why">${esc(s.why)}</div>` : ""}
+      ${s.detail ? `<div class="det ${s.state}">↳ ${esc(s.detail)}</div>` : ""}</div></li>`).join("");
+  const res = $("scene-result");
+  res.hidden = cur.state === "running";
+  res.className = "result " + cur.state;
+  res.innerHTML = cur.state === "passed"
+    ? `<b>Expected and observed:</b> ${esc(cur.expect)}<br><span class="muted">Say: “${esc(cur.say)}”</span>`
+    : `<b>Did not pass.</b> See the step marked ✕.`;
+}
+
+// ---------- live checks ----------
+function renderChecks(st) {
+  const s = st.status, up = st.bot.running, sc = st.scene;
+  document.querySelectorAll(".check").forEach(el =>
+    el.classList.toggle("focus", !!sc && sc.state === "running" && el.dataset.m === sc.module));
+  $("k1a").textContent = s ? s.handled_this_boot : 0;
+  $("k1b").textContent = st.backlog;
+  badge($("c1"), up ? (st.backlog ? "catching up" : "listening") : (st.backlog ? `${st.backlog} waiting` : "offline"),
+        up ? (st.backlog ? "warn" : "ok") : "bad");
+
+  const hs = s ? s.helpers : {};
+  const anyDown = Object.values(hs).some(h => h.state === "down");
+  badge($("c2"), !up ? "offline" : anyDown ? "recovering" : "healthy", !up ? "off" : anyDown ? "warn" : "ok");
+  $("helpers").innerHTML = ["identifier", "pinger", "analyst"].map(n => {
+    const h = hs[n] || { state: "stopped", restarts: 0 };
+    const state = !up ? "off" : h.state === "up" ? "up" : h.state === "down" ? "crashed" : "starting";
+    const kind = { up: "ok", crashed: "bad", starting: "warn", off: "off" }[state];
+    return `<div class="kv"><span>${n}${h.restarts ? ` <span class="muted">· restarted ${h.restarts}×</span>` : ""}</span>
+      <span><span class="badge ${kind}">${state}</span> <button class="tiny danger" ${up ? "" : "disabled"} onclick="send({kind:'chaos',target:'${n}'})">crash</button></span></div>`;
+  }).join("");
+
+  $("k3a").textContent = s ? s.boot : 0;
+  $("k3b").textContent = s ? s.duplicates : 0;
+  badge($("c3"), s ? `start #${s.boot}` : "–", s && s.boot > 1 ? "ok" : "off");
+
+  if (s && s.spend) {
+    const g = s.spend, pct = Math.min(100, 100 * g.used / g.budget);
+    $("k4a").textContent = `${g.used} / ${g.budget}`;
+    $("k4m").style.width = pct + "%";
+    $("k4m").style.background = pct > 85 ? "var(--bad)" : pct > 60 ? "var(--warn)" : "var(--ok)";
+    $("k4b").textContent = `${g.calls} · ${g.refused}`;
+    $("k4c").textContent = `${g.cache_hits} · ${g.tokens_saved}`;
+    const capped = g.budget - g.used < 80;
+    badge($("c4"), g.breaker_open_s > 0 ? `repeat guard ${g.breaker_open_s}s` : capped ? "cap reached" : "within budget",
+          g.breaker_open_s > 0 || capped ? "bad" : "ok");
+  }
+}
+
+// ---------- evidence ----------
+const LEDGER = {
+  "execution-tier-binding": r => `<b>model assigned</b> · ${esc(r.tier)} tier → ${esc(r.provider)} · budget ${r.tokenBudget.total}`,
+  "usage": r => `<b>AI answer</b> · ${r.tokens} tokens${r.estimated ? " (est.)" : ""}`,
+  "cache-hit": r => `<b style="color:var(--ok)">cache hit</b> · saved ${r.tokensSaved} tokens`,
+  "refusal": r => `<b style="color:var(--bad)">AI refused</b> · ${esc(r.reason)}`,
+};
+function renderEvidence(st) {
+  if (changed("ledger", st.ledger)) {
+    $("ledger").innerHTML = st.ledger.length ? [...st.ledger].reverse().map(rec => {
+      const { record, ...rest } = rec;
+      return `<details><summary>${(LEDGER[record] || (() => esc(record)))(rest)}</summary><pre>${esc(JSON.stringify(rest, null, 2))}</pre></details>`;
+    }).join("") : '<span class="muted">No AI use yet. Ask Hatenna a question.</span>';
+  }
+  if (changed("internals", st.feed.length)) {
+    const box = $("internals");
+    box.innerHTML = st.feed.slice(-80).map(f => `<div><span class="muted">${clock(f.ts)}</span> <b>${esc(f.who)}</b> ${esc(f.text)}</div>`).join("");
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+function render(st) {
+  const s = st.status, up = st.bot.running, now = st.now;
+  $("pill").className = "pill " + (up ? "up" : "down");
+  $("pill-text").textContent = up ? "ONLINE" : st.bot.last_exit === "killed (SIGKILL)" ? "OFFLINE · plug pulled" : "OFFLINE";
+  $("meta").textContent = s ? (up ? `up ${age(now - s.started)} · ♥ ${age(now - s.heartbeat)}` : `last ♥ ${age(now - s.heartbeat)} ago`) : "";
+  $("b-start").disabled = up; $("b-stop").disabled = !up; $("b-kill").disabled = !up;
+  $("typing").textContent = up && st.backlog ? "Hatenna is typing…" : !up && st.backlog ? `${st.backlog} message(s) waiting for Hatenna` : "";
+  renderScenes(st); renderChannel(st); renderChecks(st); renderEvidence(st);
+}
+
+async function tick() {
+  try { render(await (await fetch("/api/state")).json()); }
+  catch (e) { $("pill").className = "pill down"; $("pill-text").textContent = "console offline"; }
+}
+tick(); setInterval(tick, 500);
+</script>
+</body>
+</html>

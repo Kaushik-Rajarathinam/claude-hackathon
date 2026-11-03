@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commercetrustlabs.org/schemas/v1/common.schema.json",
+  "title": "Autonomous Trust \u2014 Common Definitions",
+  "description": "Shared definitions referenced by the seven Autonomous Trust contract schemas.",
+  "$defs": {
+    "contractVersion": {
+      "type": "string",
+      "description": "Semantic version of the contract schema this document conforms to.",
+      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+    },
+    "id": {
+      "type": "string",
+      "description": "Stable, globally unique identifier (UUID or prefixed ULID).",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9:_-]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "riskTier": {
+      "type": "string",
+      "description": "Risk tier of an action. R0 = read-only, R1 = low-impact reversible, R2 = production-impacting, R3 = irreversible or financially consequential.",
+      "enum": [
+        "R0",
+        "R1",
+        "R2",
+        "R3"
+      ]
+    },
+    "actor": {
+      "type": "object",
+      "description": "A human, agent, or service identity. Agents carry workload identity (e.g., SPIFFE); humans carry IdP identity (e.g., OIDC subject).",
+      "required": [
+        "type",
+        "id"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "human",
+            "agent",
+            "service"
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "identity": {
+          "type": "object",
+          "properties": {
+            "issuer": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "digest": {
+      "type": "string",
+      "description": "Content digest in the form algo:hex (e.g., sha256:ab12...).",
+      "pattern": "^(sha256|sha512):[a-f0-9]{16,128}$"
+    },
+    "confidenceLevel": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "capabilityTier": {
+      "type": "string",
+      "description": "Provider-agnostic capability class. Names a tier, never a vendor.",
+      "enum": [
+        "local",
+        "enterprise",
+        "frontier",
+        "specialized"
+      ]
+    },
+    "attestationRef": {
+      "type": "object",
+      "description": "Reference to a signed attestation (in-toto / SLSA provenance) proving integrity and authorship of the referenced material.",
+      "required": [
+        "format",
+        "digest"
+      ],
+      "properties": {
+        "format": {
+          "enum": [
+            "in-toto/v1",
+            "slsa-provenance/v1"
+          ]
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      },
+      "additionalProperties": false
+    },
+    "principalChain": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered authority chain from the root principal (a human, or a durable service identity acting under standing human authorization) to the acting agent. Every delegated hop is present; the commit gateway refuses any action whose chain does not terminate in an authorized principal \u2014 delegation cannot launder authority.",
+      "items": {
+        "$ref": "#/$defs/actor"
+      }
+    },
+    "simulationTier": {
+      "enum": [
+        "native-dry-run",
+        "shadow",
+        "static-analysis",
+        "model-predicted",
+        "none"
+      ],
+      "description": "How a proposed action's effect was determined before authorization, in descending order of trust. 'model-predicted' and 'none' are lowest-trust and must be visible to the authorizer."
+    },
+    "obligation": {
+      "type": "object",
+      "description": "A runtime constraint the Execution Governor must enforce as a pure enforcement point. Thresholds are policy output, never governor-local config \u2014 there is exactly one place policy is written.",
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "e.g., max_steps, max_retries, max_tokens, max_cost_usd, max_elapsed_seconds, max_write_attempts, min_confidence_delta"
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}
