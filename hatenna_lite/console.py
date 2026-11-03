@@ -254,7 +254,7 @@ def main(port: int = 8765, autostart: bool = True) -> None:
     if autostart:
         console.start()
     server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(console))
-    print(f"Hatenna Lite demo console → http://127.0.0.1:{port}  (Ctrl-C to quit)", flush=True)
+    print(f"Who's That Pokémon? demo console → http://127.0.0.1:{port}  (Ctrl-C to quit)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

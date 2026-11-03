@@ -1,6 +1,6 @@
-# Hatenna Lite
+# Who's That Pokémon?
 
-A slimmed-down HatennaBot (Kaushik's Pokétwo helper bot for Discord) for a hackathon demo: see a Pokémon spawn, name it, ping the people hunting it. Built around three pillars:
+Hackathon build of Hatenna Lite, a slimmed-down HatennaBot (Kaushik's Pokétwo helper bot for Discord): see a Pokémon spawn, name it, ping the people hunting it. Built around three pillars:
 
 1. **Always on**: built. Spec: [docs/always-on-spec.md](docs/always-on-spec.md)
 2. **Institutional memory**: spec to come

@@ -1,4 +1,4 @@
-"""Hatenna Lite.
+"""Who's That Pokémon? (Hatenna Lite).
 
   python3 -m hatenna_lite console [--port 8765] [--no-bot]   demo UI (starts the bot)
   python3 -m hatenna_lite bot [--until-idle SECONDS]          the always-on bot alone
