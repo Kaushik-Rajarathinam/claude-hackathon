@@ -56,7 +56,7 @@ class AlwaysOnTest(unittest.TestCase):
         run_bot(self.paths)
         self.assertEqual(self.status()["events_total"], 2)
         self.assertTrue(any("unreadable" in t for t in said(self.paths, "listener")))
-        self.assertIn("Dratini spawned → pinging @kaushik", said(self.paths, "pinger"))
+        self.assertIn("Dratini spawned! @kaushik", said(self.paths, "pinger"))
 
     def test_resume_continues_from_bookmark_without_repeats(self):
         write_inbox(self.paths, HUNT, SPAWN)
@@ -87,8 +87,18 @@ class AlwaysOnTest(unittest.TestCase):
         self.assertEqual(st["incidents"], 1)
         self.assertEqual(st["helpers"]["pinger"]["restarts"], 1)
         self.assertEqual(st["helpers"]["identifier"]["restarts"], 0)
-        self.assertIn("Dratini spawned → pinging @kaushik", said(self.paths, "pinger"))
+        self.assertIn("Dratini spawned! @kaushik", said(self.paths, "pinger"))
         self.assertTrue(any("back up" in t for t in said(self.paths, "supervisor")))
+
+
+class SpeciesTest(unittest.TestCase):
+    def test_every_dex_number_has_a_name_and_image(self):
+        from hatenna_lite import species
+        self.assertEqual(len(species.table()), species.MAX_DEX)
+        self.assertEqual(species.name(234), "Stantler")
+        self.assertEqual(species.lookup("#147"), species.lookup("dratini"))
+        self.assertIsNone(species.lookup("1026"))
+        self.assertEqual(species.image(234), "https://server.poketwo.io/image?species=234")
 
 
 class SpendGuardTest(unittest.TestCase):

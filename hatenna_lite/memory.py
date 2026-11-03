@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE TABLE IF NOT EXISTS sightings (
     spawn_id   TEXT PRIMARY KEY,
+    dex        INTEGER,
+    image      TEXT,
     name       TEXT NOT NULL,
     confidence REAL NOT NULL,
     ts         REAL NOT NULL
@@ -87,9 +89,14 @@ class Memory:
         return self._one("SELECT COUNT(*) n FROM events")["n"]
 
     # --- what the helpers produce ---
-    def record_sighting(self, spawn_id: str, name: str, confidence: float, ts: float) -> None:
-        self.db.execute("INSERT OR REPLACE INTO sightings VALUES(?,?,?,?)",
-                        (spawn_id, name, confidence, ts))
+    def record_sighting(self, spawn_id: str, dex: Optional[int], image: Optional[str],
+                        name: str, confidence: float, ts: float) -> None:
+        self.db.execute("INSERT OR REPLACE INTO sightings VALUES(?,?,?,?,?,?)",
+                        (spawn_id, dex, image, name, confidence, ts))
+
+    def recent_sightings(self, n: int = 8) -> list[dict]:
+        rows = self.db.execute("SELECT * FROM sightings ORDER BY ts DESC LIMIT ?", (n,))
+        return [dict(r) for r in rows]
 
     def top_sightings(self, n: int = 3) -> list[tuple[str, int]]:
         rows = self.db.execute(

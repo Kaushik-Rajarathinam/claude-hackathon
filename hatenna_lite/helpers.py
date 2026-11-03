@@ -41,8 +41,9 @@ class Identifier(Helper):
         p = event["payload"]
         # Plug point for the real image model; the demo feed carries its answer.
         name, conf = p["model_guess"], float(p.get("confidence", 0.9))
-        self.memory.record_sighting(event["id"], name, conf, time.time())
-        self.say(f"{event['id']}: it's {name} ({conf:.0%})")
+        self.memory.record_sighting(event["id"], p.get("dex"), p.get("image"), name, conf, time.time())
+        dex = f" #{p['dex']}" if p.get("dex") else ""
+        self.say(f"{name}{dex} · {conf:.0%} sure")
         self.publish({"kind": "identified", "payload": {"spawn_id": event["id"], "name": name}})
 
 
@@ -55,11 +56,11 @@ class Pinger(Helper):
         p = event["payload"]
         if event["kind"] == "hunt":
             self.memory.add_hunter(p["user"], p["pokemon"])
-            self.say(f"{p['user']} is now hunting {p['pokemon']}")
+            self.say(f"Got it, {p['user']}. I'll ping you when {p['pokemon']} spawns.")
             return
         users = self.memory.hunters_for(p["name"])
         if users:
-            self.say(f"{p['name']} spawned → pinging {', '.join('@' + u for u in users)}")
+            self.say(f"{p['name']} spawned! {' '.join('@' + u for u in users)}")
 
 
 class Analyst(Helper):

@@ -20,13 +20,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 
+from . import species
 from .bot import Paths, append_feed, default_var
+from .scenes import SceneRunner
 
 STATIC = Path(__file__).parent / "static"
-SPAWNS = [  # what the image model would say for each demo spawn
-    ("Dratini", 0.97), ("Bagon", 0.93), ("Finizen", 0.61), ("Eevee", 0.99),
-    ("Gible", 0.95), ("Larvitar", 0.88), ("Magikarp", 0.99), ("Riolu", 0.91),
-]
 
 
 class Console:
@@ -35,6 +33,7 @@ class Console:
         self.proc: Optional[subprocess.Popen] = None
         self.last_exit: Optional[str] = None
         self.lock = threading.Lock()
+        self.scenes = SceneRunner(self)
 
     # --- bot process control ---
     def _external_pid(self) -> Optional[int]:
@@ -80,15 +79,24 @@ class Console:
             return label
 
     def reset(self) -> str:
+        if self.scenes.busy():
+            return "a scene is running"
+        if self.running_pid():
+            self.signal_bot(signal.SIGTERM)
+            end = time.time() + 5
+            while self.running_pid() and time.time() < end:
+                time.sleep(0.1)
         with self.lock:
             if self.running_pid():
                 return "stop the bot first"
             shutil.rmtree(self.paths.var, ignore_errors=True)
             self.last_exit = None
+            self.scenes.current = None
             return "demo reset"
 
     # --- inputs: append to the inbox, exactly like any other event source ---
     def _append(self, event: dict) -> dict:
+        event = {**event, "ts": time.time()}
         self.paths.var.mkdir(parents=True, exist_ok=True)
         with self.paths.inbox.open("a") as f:
             f.write(json.dumps(event) + "\n")
@@ -105,18 +113,27 @@ class Console:
         if kind == "replay":
             last = self._last_event()
             return self._append(last) if last else {"error": "nothing to replay"}
+        if kind == "say":  # a player typing in the channel
+            return self._chat(body.get("user") or "judge", (body.get("text") or "").strip())
         n = self._inbox_lines() + 1
         if kind == "spawn":
-            name, conf = random.choice(SPAWNS) if not body.get("pokemon") else \
-                next(((s, c) for s, c in SPAWNS if s.lower() == body["pokemon"].lower()),
-                     (body["pokemon"].title(), 0.9))
-            return self._append({"id": f"s-{n:03d}", "kind": "spawn",
-                                 "payload": {"model_guess": name, "confidence": conf}})
+            query = (body.get("pokemon") or "").strip()
+            dex = species.lookup(query) if query else species.random_dex()
+            if dex is None:
+                return {"error": f"no pokémon {query!r} (use a name or 1–{species.MAX_DEX})"}
+            # The demo stands in for the image model: it knows the species and
+            # reports a plausible confidence.
+            return self._append({"id": f"s-{n:03d}", "kind": "spawn", "payload": {
+                "dex": dex, "image": species.image(dex),
+                "model_guess": species.name(dex), "confidence": round(random.uniform(0.82, 0.99), 2)}})
         if kind == "burst":
             return {"sent": [self.send({"kind": "spawn"})["id"] for _ in range(int(body.get("n", 5)))]}
         if kind == "hunt":
+            query = body.get("pokemon") or "dratini"
+            dex = species.lookup(query)
             return self._append({"id": f"h-{n:03d}", "kind": "hunt", "payload": {
-                "user": body.get("user") or "kaushik", "pokemon": body.get("pokemon") or "dratini"}})
+                "user": body.get("user") or "kaushik",
+                "pokemon": species.name(dex) if dex else query}})
         if kind == "ask":
             return self._append({"id": f"q-{n:03d}", "kind": "ask", "payload": {
                 "user": body.get("user") or "judge", "text": body.get("text") or "how are you doing?"}})
@@ -124,6 +141,19 @@ class Console:
             return self._append({"id": f"c-{uuid.uuid4().hex[:6]}", "kind": "chaos",
                                  "payload": {"target": body.get("target", "pinger")}})
         return {"error": f"unknown kind {kind!r}"}
+
+    def _chat(self, user: str, text: str) -> dict:
+        low = text.lower()
+        if low.startswith(("h!sh ", "h!hunt ")):
+            return self.send({"kind": "hunt", "user": user, "pokemon": text.split(None, 1)[1]})
+        if low.startswith(("h!ask ", "@hatenna ")):
+            return self.send({"kind": "ask", "user": user, "text": text.split(None, 1)[1]})
+        if low.startswith("h!spawn"):
+            return self.send({"kind": "spawn", "pokemon": text[len("h!spawn"):].strip()})
+        if not text:
+            return {"error": "type a message"}
+        n = self._inbox_lines() + 1
+        return self._append({"id": f"m-{n:03d}", "kind": "chat", "payload": {"user": user, "text": text}})
 
     def _inbox_lines(self) -> int:
         if not self.paths.inbox.exists():
@@ -150,8 +180,12 @@ class Console:
             "bot": {"running": bool(pid), "pid": pid, "last_exit": None if pid else self.last_exit},
             "status": status,
             "backlog": backlog,
-            "feed": _tail_jsonl(self.paths.feed, 200),
-            "ledger": _tail_jsonl(self.paths.ledger, 8),
+            "inbox_total": self._inbox_lines(),
+            "inbox": _tail_jsonl(self.paths.inbox, 120),
+            "feed": _tail_jsonl(self.paths.feed, 300),
+            "ledger": _tail_jsonl(self.paths.ledger, 12),
+            "scenes": self.scenes.catalog(),
+            "scene": self.scenes.current,
         }
 
 
@@ -205,6 +239,8 @@ def make_handler(console: Console):
                 "/api/bot/kill": lambda: {"result": console.signal_bot(signal.SIGKILL)},
                 "/api/reset": lambda: {"result": console.reset()},
                 "/api/event": lambda: console.send(body),
+                "/api/scene": lambda: console.scenes.start(body.get("key", "")),
+                "/api/pace": lambda: {"result": setattr(console.scenes, "pace", float(body.get("pace", 1.2))) or "ok"},
             }
             if self.path not in actions:
                 return self._json({"error": "not found"}, 404)

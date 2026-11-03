@@ -188,6 +188,8 @@ class Bot:
             "hunters": self.memory.hunter_count(),
             "helpers": self.health,
             "spend": self.guard.snapshot(Analyst.task_ref()),
+            "recent_spawns": [{**s, "pinged": self.memory.hunters_for(s["name"])}
+                              for s in self.memory.recent_sightings(8)],
         }
         tmp = self.paths.status.with_suffix(".tmp")
         tmp.write_text(json.dumps(status))
@@ -209,10 +211,8 @@ class Bot:
             self.queues[helper.name] = asyncio.Queue()
             self.health[helper.name] = {"state": "starting", "restarts": 0, "handled": 0, "last_error": None}
             self._start(helper.name)
-        cursor = self.memory.get_fact("cursor", 0)
-        self.say("supervisor", f"boot #{self.boot} (pid {os.getpid()}): {self.memory.event_count()} events "
-                               f"in memory, resuming at byte {cursor}; helpers: {', '.join(self.helpers)}; "
-                               f"AI tier local → {self.guard.routes['local'].provider}")
+        self.say("supervisor", f"boot #{self.boot}: {self.memory.event_count()} events already handled, "
+                               f"resuming from the saved position")
 
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -248,6 +248,8 @@ def describe(event: dict) -> str:
         return f"{p.get('user', 'someone')} asks: {p.get('text')}"
     if kind == "chaos":
         return f"(demo) inject a fault into {p.get('target')}"
+    if kind == "chat":
+        return f"{p.get('user')}: {p.get('text')}"
     return f"{kind} {p}"
 
 

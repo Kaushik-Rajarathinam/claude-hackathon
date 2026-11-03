@@ -24,11 +24,11 @@ from typing import Optional
 from .ledger import CONTRACT_VERSION, Ledger, new_id, utc_now
 from .memory import Memory
 
-DEFAULT_BUDGET = int(os.getenv("HATENNA_LITE_BUDGET", "400"))
+DEFAULT_BUDGET = int(os.getenv("HATENNA_LITE_BUDGET", "200"))
 MAX_OUTPUT_TOKENS = 64
 BREAKER_REPEATS = 3        # same prompt this many times...
 BREAKER_WINDOW_S = 30.0    # ...within this window opens the breaker
-BREAKER_COOLDOWN_S = 30.0
+BREAKER_COOLDOWN_S = 15.0
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 

@@ -8,32 +8,32 @@ A slimmed-down HatennaBot (Kaushik's Pokétwo helper bot for Discord) for a hack
 
 ## Run the demo
 
-Python 3.9+, standard library only. No Discord token, no network.
+Python 3.9+, standard library only. No Discord token needed; spawn images load from Pokétwo's image server.
 
 ```bash
 python3 -m hatenna_lite console
 ```
 
-Open http://127.0.0.1:8765. The console starts the bot as a separate process, so you can stop it, kill -9 it, and watch what happens.
+Open http://127.0.0.1:8765 (best on a wide screen). Three columns:
 
-For the budget demo, start with a small budget so it runs out after a few questions:
+- **Left: the bot and the demo scenes.** Start, Stop, Pull the plug (kill -9), Reset; six scenes with what each one should prove.
+- **Middle: the game, simulated.** A `#pokétwo-spawns` channel where Pokétwo posts wild spawns with their real images and Hatenna replies: names the pokémon, pings its hunters, answers questions. Type in it yourself: `h!sh stantler`, `h!spawn 234` (any dex number 1–1025 or name), `@hatenna what spawns most?`. Above the channel, the running scene ticks each step only when the bot really did it.
+- **Right: the proof.** The four always-on checks live, the AI spend log (click a line for the full CTL record), and the bot's internal log.
 
-```bash
-HATENNA_LITE_BUDGET=150 python3 -m hatenna_lite console
-```
+## Demo scenes
 
-## Five-minute walkthrough
+Run them in order. Each one drives the real bot, then checks the bot's own status before ticking a step.
 
-| Step | Click | What the audience sees |
-|---|---|---|
-| 1. Listener | **Hunt** (kaushik / dratini), then **Spawn** and **Burst ×5** | Each spawn is named; Dratini pings @kaushik |
-| 2. Supervisor | **crash** next to *pinger*, then **Spawn** | Pinger goes `down`, Identifier keeps working, Pinger is back in ~0.5 s and the ping still goes out |
-| 3. Resume | **Kill -9**, then **Spawn** ×3 | Bot is DOWN; *Waiting in inbox* climbs to 3 |
-|  | **Start bot** | Boot #2; the 3 waiting spawns drain; nothing repeated |
-|  | **Replay last event** | "already handled — skipped duplicate" |
-| 4. Spend guard | **Ask** a few times | Token meter fills; each AI call is logged in the Ledger |
-|  | **Ask same thing ×3** | Third call refused (retry loop); breaker open 30 s; bot answers without AI |
-|  | Keep asking | Budget runs out; refusals in the Ledger; bot keeps answering from its own data |
+| # | Scene | Shows | Expected |
+|---|---|---|---|
+| 1 | A normal day | Always listening | Every spawn is named; the hunter gets pinged |
+| 2 | A helper crashes | Heals itself | The others keep working; the crashed helper restarts and its work is kept |
+| 3 | Power cut | Picks up where it left off | After kill -9 and restart, nothing is lost and nothing is repeated |
+| 4 | Same event twice | Picks up where it left off | A repeated event is recognised and skipped |
+| 5 | Retry loop | Capped AI spend | The third identical question is refused; the bot still answers without AI |
+| 6 | Budget runs out | Capped AI spend | Spend stops at the cap; the bot keeps working |
+
+Each passed scene shows a one-line talk track. Use **Slow / Normal / Fast** to set the pace, and **Reset** to start over (scene 6 uses up the AI budget for the day).
 
 ## How it's built
 
@@ -43,7 +43,8 @@ HATENNA_LITE_BUDGET=150 python3 -m hatenna_lite console
 | Spend guard | `hatenna_lite/spend_guard.py` | Python port of the Commerce Trust Labs [gateway](https://github.com/commerce-trust-labs/autonomous-trust-gateway): tier routing, per-task budgets, Execution Tier Bindings |
 | Helpers | `hatenna_lite/helpers.py` | Identifier (`cogs/prediction.py`), Pinger (`cogs/shinyhunt.py`), Analyst (`cogs/ai.py`) in HatennaBot |
 | Memory | `hatenna_lite/memory.py` | one SQLite file instead of MongoDB + Redis |
-| Demo console | `hatenna_lite/console.py`, `hatenna_lite/static/index.html` | new |
+| Demo console + scenes | `hatenna_lite/console.py`, `hatenna_lite/scenes.py`, `hatenna_lite/static/index.html` | new |
+| Species 1–1025 | `hatenna_lite/species.py`, `hatenna_lite/data/species.json` | generated from HatennaBot's `data/pokemon.csv` |
 
 - The bot and the console only share files under `var/`: the console appends to `inbox.jsonl`; the bot writes `status.json`, `feed.jsonl` and `ledger.jsonl`.
 - Delivery is at-least-once: an event killed mid-handling runs again on restart, so helper writes are idempotent.
