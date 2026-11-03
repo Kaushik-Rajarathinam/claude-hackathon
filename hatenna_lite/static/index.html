@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hatenna Lite</title>
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e4e2dd;
+  --ok: #1f8a4c; --ok-bg: #e5f4ea; --warn: #b26a00; --warn-bg: #fdf1dc;
+  --bad: #c0392b; --bad-bg: #fbe6e3; --accent: #c2477a; --accent-ink: #fff;
+  --identifier: #1c7ea6; --pinger: #8e44ad; --analyst: #1f8a4c; --supervisor: #6b6b70;
+  --listener: #b26a00; --console: #c0392b;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141416; --panel: #1d1d20; --ink: #ececef; --muted: #9a9aa2; --line: #2e2e33;
+    --ok: #4cc98a; --ok-bg: #16301f; --warn: #f0b04a; --warn-bg: #3a2c12;
+    --bad: #f07a6c; --bad-bg: #3a1a17; --accent: #e070a0;
+    --identifier: #5cb8de; --pinger: #c18ae0; --analyst: #4cc98a; --supervisor: #9a9aa2;
+    --listener: #f0b04a; --console: #f07a6c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+h1 small { font-weight: 500; color: var(--muted); font-size: 14px; margin-left: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+  font-weight: 600; font-size: 13px; }
+.pill.up { background: var(--ok-bg); color: var(--ok); }
+.pill.down { background: var(--bad-bg); color: var(--bad); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; }
+.pill.up .dot { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.meta { color: var(--muted); font-size: 13px; display: flex; gap: 14px; flex-wrap: wrap; }
+.meta b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+button { font: inherit; font-weight: 600; font-size: 13px; padding: 7px 12px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+button.small { padding: 3px 8px; font-size: 12px; }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1080px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.card h2 span { color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 15px; display: block; margin-top: 2px; }
+.stat { display: flex; justify-content: space-between; gap: 8px; }
+.stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.bad { background: var(--bad-bg); color: var(--bad); }
+.badge.off { background: var(--line); color: var(--muted); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+input { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); min-width: 0; flex: 1; }
+.helper { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center;
+  padding: 6px 0; border-top: 1px solid var(--line); }
+.helper:first-of-type { border-top: 0; }
+.helper .name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.helper .sub { color: var(--muted); font-size: 12px; font-weight: 400; }
+.meter { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.meter > div { height: 100%; background: var(--ok); transition: width .3s, background .3s; }
+.hint { color: var(--muted); font-size: 12px; margin: 0; }
+.bottom { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; margin-top: 12px; }
+@media (max-width: 900px) { .bottom { grid-template-columns: 1fr; } }
+.feed, .ledger { font-family: var(--mono); font-size: 12px; height: 360px; overflow: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.feed div { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
+.feed .t { color: var(--muted); }
+.feed .w { display: inline-block; min-width: 86px; font-weight: 700; }
+.ledger pre { margin: 0 0 8px; white-space: pre-wrap; word-break: break-word; }
+.ledger .k { font-weight: 700; }
+.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { from { background: var(--warn-bg); } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Hatenna Lite <small>Pillar 1 · Always on</small></h1>
+      <div class="meta" style="margin-top:6px">
+        <span>boot <b id="m-boot">–</b></span>
+        <span>uptime <b id="m-uptime">–</b></span>
+        <span>heartbeat <b id="m-beat">–</b></span>
+        <span>pid <b id="m-pid">–</b></span>
+      </div>
+    </div>
+    <span id="pill" class="pill down"><span class="dot"></span><span id="pill-text">connecting…</span></span>
+  </header>
+
+  <div class="controls">
+    <button id="b-start" class="primary" onclick="post('/api/bot/start')">Start bot</button>
+    <button id="b-stop" onclick="post('/api/bot/stop')">Stop gracefully</button>
+    <button id="b-kill" class="danger" onclick="post('/api/bot/kill')">Kill -9 (hard crash)</button>
+    <button id="b-reset" onclick="if (confirm('Wipe all demo state?')) post('/api/reset')">Reset demo</button>
+  </div>
+
+  <section class="grid">
+    <!-- Module 1 -->
+    <div class="card">
+      <h2>Module 1 <span>Listener</span></h2>
+      <div class="stat"><span>Handled this boot</span><span class="v" id="l-boot">0</span></div>
+      <div class="stat"><span>Handled all time</span><span class="v" id="l-all">0</span></div>
+      <div class="stat"><span>Waiting in inbox</span><span id="l-backlog" class="badge ok">0</span></div>
+      <div class="row">
+        <button onclick="send({kind:'spawn'})">Spawn</button>
+        <button onclick="send({kind:'burst', n:5})">Burst ×5</button>
+      </div>
+      <div class="row">
+        <input id="h-user" placeholder="user" value="kaushik">
+        <input id="h-poke" placeholder="pokémon" value="dratini">
+        <button onclick="send({kind:'hunt', user: val('h-user'), pokemon: val('h-poke')})">Hunt</button>
+      </div>
+      <p class="hint">Events sent while the bot is down wait here and drain on restart.</p>
+    </div>
+
+    <!-- Module 2 -->
+    <div class="card">
+      <h2>Module 2 <span>Supervisor</span></h2>
+      <div id="helpers"></div>
+      <div class="stat"><span>Crashes recovered</span><span class="v" id="s-inc">0</span></div>
+      <p class="hint">Crash one helper — the others keep working and it restarts itself.</p>
+    </div>
+
+    <!-- Module 3 -->
+    <div class="card">
+      <h2>Module 3 <span>Resume</span></h2>
+      <div class="big" id="r-boot">–</div>
+      <div class="hint" style="margin-top:-6px">boots, same memory</div>
+      <div class="stat"><span>Bookmark</span><span class="v" id="r-cursor">–</span></div>
+      <div class="stat"><span>Duplicates skipped</span><span class="v" id="r-dupes">0</span></div>
+      <div class="row"><button onclick="send({kind:'replay'})">Replay last event</button></div>
+      <p class="hint">Kill -9, send spawns, start again: nothing lost, nothing repeated.</p>
+    </div>
+
+    <!-- Module 4 -->
+    <div class="card">
+      <h2>Module 4 <span>Spend guard</span></h2>
+      <div class="stat"><span>Tokens</span><span class="v" id="g-used">0 / 0</span></div>
+      <div class="meter"><div id="g-meter" style="width:0%"></div></div>
+      <div class="stat"><span>AI calls · refused</span><span class="v" id="g-calls">0 · 0</span></div>
+      <div class="stat"><span>Retry breaker</span><span id="g-breaker" class="badge ok">closed</span></div>
+      <div class="stat"><span>Tier → provider</span><span class="v" id="g-route">–</span></div>
+      <div class="row">
+        <input id="q" placeholder="ask the analyst" value="what spawns most?">
+        <button onclick="send({kind:'ask', text: val('q')})">Ask</button>
+      </div>
+      <div class="row"><button onclick="retryStorm()">Ask same thing ×3 (retry loop)</button></div>
+    </div>
+  </section>
+
+  <section class="bottom">
+    <div class="card">
+      <h2>Live feed</h2>
+      <div class="feed" id="feed"></div>
+    </div>
+    <div class="card">
+      <h2>Ledger <span style="font-size:12px;color:var(--muted)">CTL records (latest first)</span></h2>
+      <div class="ledger" id="ledger"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const val = id => $(id).value.trim();
+let lastFeedLen = -1, lastLedger = "";
+
+async function post(path, body = {}) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(body) });
+  const j = await r.json();
+  if (j.result && j.result !== "graceful stop" && j.result !== "kill -9" && !j.result.startsWith("started"))
+    console.info(j.result);
+  tick();
+  return j;
+}
+const send = body => post("/api/event", body);
+async function retryStorm() { for (let i = 0; i < 3; i++) await send({ kind: "ask", text: val("q") }); }
+
+function fmtAge(s) {
+  if (s == null) return "–";
+  if (s < 60) return s.toFixed(1) + "s";
+  const m = Math.floor(s / 60);
+  return m < 60 ? `${m}m ${Math.floor(s % 60)}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+function setBadge(el, text, kind) { el.textContent = text; el.className = "badge " + kind; }
+
+function render(st) {
+  const s = st.status, up = st.bot.running, now = st.now;
+  const beatAge = s ? now - s.heartbeat : null;
+  $("pill").className = "pill " + (up ? "up" : "down");
+  $("pill-text").textContent = up ? "RUNNING" : ("DOWN" + (st.bot.last_exit ? " — " + st.bot.last_exit : ""));
+  $("m-boot").textContent = s ? "#" + s.boot : "–";
+  $("m-uptime").textContent = up && s ? fmtAge(now - s.started) : "–";
+  $("m-beat").textContent = beatAge == null ? "–" : fmtAge(beatAge) + " ago";
+  $("m-beat").style.color = beatAge != null && beatAge > 3 ? "var(--bad)" : "";
+  $("m-pid").textContent = st.bot.pid || "–";
+  $("b-start").disabled = up; $("b-stop").disabled = !up; $("b-kill").disabled = !up; $("b-reset").disabled = up;
+
+  // Module 1
+  $("l-boot").textContent = s ? s.handled_this_boot : 0;
+  $("l-all").textContent = s ? s.events_total : 0;
+  setBadge($("l-backlog"), st.backlog + (st.backlog === 1 ? " event" : " events"),
+           st.backlog === 0 ? "ok" : up ? "warn" : "bad");
+
+  // Module 2
+  const helpers = s ? s.helpers : {};
+  const box = $("helpers");
+  const names = Object.keys(helpers).length ? Object.keys(helpers) : ["identifier", "pinger", "analyst"];
+  box.innerHTML = "";
+  for (const name of names) {
+    const h = helpers[name] || { state: "stopped", restarts: 0, handled: 0 };
+    const state = up ? h.state : "offline";
+    const kind = state === "up" ? "ok" : state === "down" ? "bad" : state === "starting" ? "warn" : "off";
+    const row = document.createElement("div"); row.className = "helper";
+    const left = document.createElement("div"); left.className = "name";
+    left.innerHTML = `<span class="dot" style="color:var(--${name})"></span>`;
+    left.append(name);
+    const sub = document.createElement("span"); sub.className = "sub";
+    sub.textContent = `${h.handled} handled · ${h.restarts} restarts`;
+    left.append(sub);
+    const badge = document.createElement("span"); setBadge(badge, state, kind);
+    const btn = document.createElement("button"); btn.className = "small danger"; btn.textContent = "crash";
+    btn.disabled = !up; btn.onclick = () => send({ kind: "chaos", target: name });
+    row.append(left, badge, btn); box.append(row);
+  }
+  $("s-inc").textContent = s ? s.incidents : 0;
+
+  // Module 3
+  $("r-boot").textContent = s ? s.boot : "–";
+  $("r-cursor").textContent = s ? `byte ${s.cursor} of ${s.inbox_bytes}` : "–";
+  $("r-dupes").textContent = s ? s.duplicates : 0;
+
+  // Module 4
+  if (s && s.spend) {
+    const g = s.spend, pct = Math.min(100, 100 * g.used / g.budget);
+    $("g-used").textContent = `${g.used} / ${g.budget}`;
+    $("g-meter").style.width = pct + "%";
+    $("g-meter").style.background = pct > 85 ? "var(--bad)" : pct > 60 ? "var(--warn)" : "var(--ok)";
+    $("g-calls").textContent = `${g.calls} · ${g.refused}`;
+    if (g.breaker_open_s > 0) setBadge($("g-breaker"), `open ${g.breaker_open_s}s`, "bad");
+    else setBadge($("g-breaker"), "closed", "ok");
+    $("g-route").textContent = `${g.tier} → ${g.provider}`;
+  }
+
+  // Feed
+  if (st.feed.length !== lastFeedLen) {
+    const feed = $("feed"), stick = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 30;
+    feed.innerHTML = "";
+    for (const f of st.feed) {
+      const d = document.createElement("div");
+      const t = document.createElement("span"); t.className = "t";
+      t.textContent = new Date(f.ts * 1000).toLocaleTimeString() + "  ";
+      const w = document.createElement("span"); w.className = "w";
+      w.style.color = `var(--${f.who}, var(--ink))`; w.textContent = f.who;
+      d.append(t, w, f.text); feed.append(d);
+    }
+    if (stick || lastFeedLen < 0) feed.scrollTop = feed.scrollHeight;
+    lastFeedLen = st.feed.length;
+  }
+
+  // Ledger
+  const ledgerKey = JSON.stringify(st.ledger);
+  if (ledgerKey !== lastLedger) {
+    const box = $("ledger"); box.innerHTML = "";
+    if (!st.ledger.length) box.textContent = "No AI calls yet. Ask the analyst.";
+    for (const rec of [...st.ledger].reverse()) {
+      const { record, ...rest } = rec;
+      const k = document.createElement("div"); k.className = "k"; k.textContent = record;
+      k.style.color = record === "refusal" ? "var(--bad)" : record === "usage" ? "var(--muted)" : "var(--accent)";
+      const pre = document.createElement("pre"); pre.textContent = JSON.stringify(rest, null, 2);
+      box.append(k, pre);
+    }
+    if (lastLedger) box.classList.remove("flash"), void box.offsetWidth, box.classList.add("flash");
+    lastLedger = ledgerKey;
+  }
+}
+
+async function tick() {
+  try { render(await (await fetch("/api/state")).json()); }
+  catch (e) { $("pill").className = "pill down"; $("pill-text").textContent = "console offline"; }
+}
+tick(); setInterval(tick, 500);
+</script>
+</body>
+</html>
